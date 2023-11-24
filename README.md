@@ -1,6 +1,8 @@
 # GeneticAlgorithm
 Optimal ordered charging algorithm for electric vehicles based on integer programming
 
+ NewPyomo.py -- 利用Gurobi求解，数据是CSV的不是jld2的；
+
  GeneticAlgorithm.py -- 最原始的版本； 5车24小时，初始化和迭代都有repair0； repair2是'!='；
 
  NewGeneticAlgorithm.py -- 从这一版开始使用CSV的数据； 100车24小时，只有初始化有repair0； repair2是'!='； 有变异；
