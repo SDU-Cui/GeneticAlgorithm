@@ -6,8 +6,8 @@ import tomli
 row = 100
 col = 96
 
-tasks = np.genfromtxt('vehicle_data_100.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
-phase_base_load = np.genfromtxt('phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
+tasks = np.genfromtxt('data/vehicle_data_100.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 
 ''' power--每辆车的充电功率;
     efficiency--每辆车的充电效率
