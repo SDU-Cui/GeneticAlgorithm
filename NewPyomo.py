@@ -3,10 +3,10 @@ from pyomo.environ import *
 import tomli
 
 # Define row and col number
-row = 100
+row = 200
 col = 96
 
-tasks = np.genfromtxt('data/vehicle_data_100.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('data/vehicle_data_200.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 
 ''' power--每辆车的充电功率;
@@ -33,7 +33,7 @@ sd = tasks['sd']
 
 #获得基础负载和电路限制get_restriction_in_power
 base_load = np.sum(phase_base_load, axis=0)
-restriction_in_power = 2000 - base_load
+restriction_in_power = 2200 - base_load
 
 # 最大三相不平衡度
 max_imbalance_limit = 0.04
@@ -188,8 +188,8 @@ model = ConcreteModel()
 
 # 决策变量
 # 创建一个矩阵变量
-model.rows = RangeSet(1, 100)  # 行数
-model.cols = RangeSet(1, 96)  # 列数
+model.rows = RangeSet(1, row)  # 行数
+model.cols = RangeSet(1, col)  # 列数
 model.x = Var(model.rows, model.cols, within=Binary)
 
 # 添加约束条件
@@ -198,10 +198,10 @@ model.x = Var(model.rows, model.cols, within=Binary)
 fix_model_value(model)
 
 # 添加电池SOC约束
-model.energy_constraint = Constraint(range(1, 101), rule = energy_constraint_rule)
+model.energy_constraint = Constraint(range(1, row + 1), rule = energy_constraint_rule)
 
 # 添加电路负荷三相不平衡约束条件
-model.power_constraint = Constraint(range(1, 97), rule = power_constraint_rule)
+model.power_constraint = Constraint(range(1, col + 1), rule = power_constraint_rule)
 # model.power_AB_lower_constraint = Constraint(range(1, 97), rule = power_phase_AB_lower_constraint_rule)
 # model.power_AB_upper_constraint = Constraint(range(1, 97), rule = power_phase_AB_upper_constraint_rule)
 # model.power_AC_lower_constraint = Constraint(range(1, 97), rule = power_phase_AC_lower_constraint_rule)
@@ -229,5 +229,5 @@ print(results.solver.status)
 print('优化结果：', model.objective())
 
 # Save model.x as csv file
-with open('./data/optimization4.csv', 'w') as cvs_file:
+with open('./data/optimization5.csv', 'w') as cvs_file:
     model.x.pprint(cvs_file)
