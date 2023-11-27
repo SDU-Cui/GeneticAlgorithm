@@ -54,7 +54,6 @@ def Distinguish_phase():
 
 def Calculate_phase(x_values, phase_list):
     # Get phase A,B,C charging power
-    # x_values = np.array([[model.x[j, k] for k in model.cols] for j in model.rows]) #获得model.x的numpy矩阵
     power_list = x_values * power
     power_phaseA = np.array(power_list[np.where(phase_list == 'A')])
     power_phaseB = np.array(power_list[np.where(phase_list == 'B')])
@@ -66,16 +65,15 @@ def Calculate_phase(x_values, phase_list):
     # PhaseC charging load
     phaseC = np.sum(power_phaseC, axis = 0)
     # Base load for each of the three items
-    three_phase = np.array(np.vstack((phaseA, phaseB, phaseC)) + phase_base_load)
+    three_phase = np.vstack((phaseA, phaseB, phaseC)) + phase_base_load
 
     return three_phase
 
 def Calculate_imbalance(three_phase):
     avg = np.mean(three_phase, axis=0)
     minus = three_phase - avg
-    
+
     return np.sum(np.square(minus), axis=0)
-    # return np.var(three_phase, axis=0)
 
 # 创建目标函数
 def objective_rule(model):
@@ -83,9 +81,9 @@ def objective_rule(model):
     cost = x_values * ρ * power * 0.25
     phase_list = Distinguish_phase()
     three_phase = Calculate_phase(x_values, phase_list)
-    imbalance = Calculate_imbalance(three_phase)
+    result_phase = Calculate_imbalance(three_phase)
 
-    return np.sum(cost) + np.sum(imbalance)
+    return np.sum(cost) + np.sum(result_phase)
 
 # 添加充电时间约束条件
 def zero_constraint_rule(model, i):
@@ -228,7 +226,6 @@ results = solver.solve(model, tee=True)
 print(results.solver.status)
 print('优化结果：', model.objective())
 
-# save model.x
-filename = "data/optimization.csv"
-with open(filename, 'w') as output_file:
-    model.pprint(output_file)
+# Save model.x as csv file
+with open('./data/optimization.csv', 'w') as cvs_file:
+    model.x.pprint(cvs_file)
