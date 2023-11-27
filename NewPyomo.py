@@ -15,7 +15,8 @@ phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype
     ρ--电价
     R--惩罚系数
     n--种群数量
-    probability--变异概率'''
+    probability--变异概率
+    α--目标值cost + α * imbalance系数'''
 
 arrival_time_step = tasks['ta']
 departure_time_step = tasks['td']
@@ -28,6 +29,7 @@ sd = tasks['sd']
 ρ1 = np.full((30), 1)
 ρ2 = np.full((col - 30), 0.1)
 ρ = np.hstack((ρ1 , ρ2))
+α = 0.1
 
 #获得基础负载和电路限制get_restriction_in_power
 base_load = np.sum(phase_base_load, axis=0)
@@ -83,7 +85,7 @@ def objective_rule(model):
     three_phase = Calculate_phase(x_values, phase_list)
     result_phase = Calculate_imbalance(three_phase)
 
-    return np.sum(cost) + np.sum(result_phase)
+    return np.sum(cost) + α * np.sum(result_phase)
 
 # 添加充电时间约束条件
 def zero_constraint_rule(model, i):
@@ -227,5 +229,5 @@ print(results.solver.status)
 print('优化结果：', model.objective())
 
 # Save model.x as csv file
-with open('./data/optimization.csv', 'w') as cvs_file:
+with open('./data/optimization2.csv', 'w') as cvs_file:
     model.x.pprint(cvs_file)
