@@ -1,0 +1,6 @@
+.vscode/
+__pycache__/
+*.toml
+*.txt
+Report/report.pdf
+data/result.csv
