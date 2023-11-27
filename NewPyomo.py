@@ -29,7 +29,7 @@ sd = tasks['sd']
 ρ1 = np.full((30), 1)
 ρ2 = np.full((col - 30), 0.1)
 ρ = np.hstack((ρ1 , ρ2))
-α = 0.1
+α = 0.01
 
 #获得基础负载和电路限制get_restriction_in_power
 base_load = np.sum(phase_base_load, axis=0)
@@ -229,5 +229,5 @@ print(results.solver.status)
 print('优化结果：', model.objective())
 
 # Save model.x as csv file
-with open('./data/optimization2.csv', 'w') as cvs_file:
+with open('./data/optimization3.csv', 'w') as cvs_file:
     model.x.pprint(cvs_file)
