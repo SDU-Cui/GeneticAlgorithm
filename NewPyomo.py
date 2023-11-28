@@ -81,11 +81,12 @@ def Calculate_imbalance(three_phase):
 def objective_rule(model):
     x_values = np.array([[model.x[j, k] for k in model.cols] for j in model.rows]) #获得model.x的numpy矩阵
     cost = x_values * ρ * power * 0.25
-    phase_list = Distinguish_phase()
-    three_phase = Calculate_phase(x_values, phase_list)
-    result_phase = Calculate_imbalance(three_phase)
+    # phase_list = Distinguish_phase()
+    # three_phase = Calculate_phase(x_values, phase_list)
+    # result_phase = Calculate_imbalance(three_phase)
 
-    return np.sum(cost) + α * np.sum(result_phase)
+    return np.sum(cost)
+    # return np.sum(cost) + α * np.sum(result_phase)
 
 # 添加充电时间约束条件
 def zero_constraint_rule(model, i):
@@ -202,12 +203,12 @@ model.energy_constraint = Constraint(range(1, row + 1), rule = energy_constraint
 
 # 添加电路负荷三相不平衡约束条件
 model.power_constraint = Constraint(range(1, col + 1), rule = power_constraint_rule)
-# model.power_AB_lower_constraint = Constraint(range(1, 97), rule = power_phase_AB_lower_constraint_rule)
-# model.power_AB_upper_constraint = Constraint(range(1, 97), rule = power_phase_AB_upper_constraint_rule)
-# model.power_AC_lower_constraint = Constraint(range(1, 97), rule = power_phase_AC_lower_constraint_rule)
-# model.power_AC_upper_constraint = Constraint(range(1, 97), rule = power_phase_AC_upper_constraint_rule)
-# model.power_BC_lower_constraint = Constraint(range(1, 97), rule = power_phase_BC_lower_constraint_rule)
-# model.power_BC_upper_constraint = Constraint(range(1, 97), rule = power_phase_BC_upper_constraint_rule)
+model.power_AB_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_AB_lower_constraint_rule)
+model.power_AB_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_AB_upper_constraint_rule)
+model.power_AC_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_AC_lower_constraint_rule)
+model.power_AC_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_AC_upper_constraint_rule)
+model.power_BC_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_BC_lower_constraint_rule)
+model.power_BC_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_BC_upper_constraint_rule)
 
 # 创建目标函数
 model.objective = Objective(rule=objective_rule, sense=minimize)
@@ -229,5 +230,5 @@ print(results.solver.status)
 print('优化结果：', model.objective())
 
 # Save model.x as csv file
-with open('./data/optimization5.csv', 'w') as cvs_file:
-    model.x.pprint(cvs_file)
+# with open('./data/optimization5.csv', 'w') as cvs_file:
+#     model.x.pprint(cvs_file)
