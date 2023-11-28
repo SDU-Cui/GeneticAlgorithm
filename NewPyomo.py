@@ -73,7 +73,7 @@ def Calculate_phase(x_values, phase_list):
 
 def Calculate_imbalance(three_phase):
     avg = np.mean(three_phase, axis=0)
-    minus = three_phase - avg
+    minus = three_phase - avg 
 
     return np.sum(np.square(minus), axis=0)
 
@@ -203,12 +203,12 @@ model.energy_constraint = Constraint(range(1, row + 1), rule = energy_constraint
 
 # 添加电路负荷三相不平衡约束条件
 model.power_constraint = Constraint(range(1, col + 1), rule = power_constraint_rule)
-model.power_AB_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_AB_lower_constraint_rule)
-model.power_AB_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_AB_upper_constraint_rule)
-model.power_AC_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_AC_lower_constraint_rule)
-model.power_AC_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_AC_upper_constraint_rule)
-model.power_BC_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_BC_lower_constraint_rule)
-model.power_BC_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_BC_upper_constraint_rule)
+# model.power_AB_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_AB_lower_constraint_rule)
+# model.power_AB_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_AB_upper_constraint_rule)
+# model.power_AC_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_AC_lower_constraint_rule)
+# model.power_AC_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_AC_upper_constraint_rule)
+# model.power_BC_lower_constraint = Constraint(range(1, col + 1), rule = power_phase_BC_lower_constraint_rule)
+# model.power_BC_upper_constraint = Constraint(range(1, col + 1), rule = power_phase_BC_upper_constraint_rule)
 
 # 创建目标函数
 model.objective = Objective(rule=objective_rule, sense=minimize)
@@ -230,5 +230,5 @@ print(results.solver.status)
 print('优化结果：', model.objective())
 
 # Save model.x as csv file
-# with open('./data/optimization5.csv', 'w') as cvs_file:
-#     model.x.pprint(cvs_file)
+with open('./data/optimization6.csv', 'w') as cvs_file:
+    model.x.pprint(cvs_file)
