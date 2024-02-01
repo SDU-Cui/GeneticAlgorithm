@@ -1,13 +1,18 @@
 import numpy as np
 from pyomo.environ import *
 import tomli
+import time
 
 # Define row and col number
-row = 200
+row = 400
 col = 96
+times = 400/200 #功率放大倍数
 
-tasks = np.genfromtxt('data/vehicle_data_200.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+start = time.time()
+
+tasks = np.genfromtxt('data/vehicle_data_400.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
+phase_base_load *= times
 
 ''' power--每辆车的充电功率;
     efficiency--每辆车的充电效率
@@ -33,7 +38,7 @@ sd = tasks['sd']
 
 #获得基础负载和电路限制get_restriction_in_power
 base_load = np.sum(phase_base_load, axis=0)
-restriction_in_power = 2200 - base_load
+restriction_in_power = 2200 * times - base_load
 
 # 最大三相不平衡度
 max_imbalance_limit = 0.04
@@ -81,12 +86,12 @@ def Calculate_imbalance(three_phase):
 def objective_rule(model):
     x_values = np.array([[model.x[j, k] for k in model.cols] for j in model.rows]) #获得model.x的numpy矩阵
     cost = x_values * ρ * power * 0.25
-    # phase_list = Distinguish_phase()
-    # three_phase = Calculate_phase(x_values, phase_list)
-    # result_phase = Calculate_imbalance(three_phase)
+    phase_list = Distinguish_phase()
+    three_phase = Calculate_phase(x_values, phase_list)
+    result_phase = Calculate_imbalance(three_phase)
 
-    return np.sum(cost)
-    # return np.sum(cost) + α * np.sum(result_phase)
+    # return np.sum(cost)
+    return np.sum(cost) + α * np.sum(result_phase)
 
 # 添加充电时间约束条件
 def zero_constraint_rule(model, i):
@@ -179,10 +184,11 @@ def power_phase_BC_upper_constraint_rule(model, i):
 def energy_constraint_rule(model, i):
     #unit_increment = power * efficiency * 0.25 / capacity #每辆车15min的单位增量
     increment_list = np.multiply(unit_increment, np.array([[model.x[j, k] for k in model.cols] for j in model.rows]))
-    max_SOC = np.floor((sd - sa) / unit_increment) * unit_increment #可由开关控制实现的最大 SOC 值
-    max_SOC = max_SOC.reshape(-1)
+    unit_increment1 = unit_increment.squeeze()
+    max_SOC = np.floor((sd - sa) / unit_increment1) * unit_increment1 #可由开关控制实现的最大 SOC 值
+    #max_SOC = max_SOC.reshape(-1)
     total_increment = np.sum(increment_list, axis = 1) #计算每辆车所有时间步的增量
-    return total_increment[i - 1] >= max_SOC[i - 1]
+    return total_increment[i - 1] == max_SOC[i - 1]
 
 # 创建一个具体的模型
 model = ConcreteModel()
@@ -213,9 +219,10 @@ model.power_constraint = Constraint(range(1, col + 1), rule = power_constraint_r
 # 创建目标函数
 model.objective = Objective(rule=objective_rule, sense=minimize)
 
-# Read param from param.toml
+ # Read param from param.toml
 with open("param.toml", "rb") as toml_file:
     config_data = tomli.load(toml_file)
+
 # 求解线性规划问题
 solver = SolverFactory('gurobi')
 # 从配置文件中读取Gurobi参数
@@ -230,5 +237,9 @@ print(results.solver.status)
 print('优化结果：', model.objective())
 
 # Save model.x as csv file
-with open('./data/optimization6.csv', 'w') as cvs_file:
+with open('./data/optimization_400.csv', 'w') as cvs_file:
     model.x.pprint(cvs_file)
+
+end = time.time()
+
+print(end - start)

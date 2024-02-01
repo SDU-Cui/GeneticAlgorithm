@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 '''
 这是遗传算法的版本V3 因为V2repair3中三相不平衡修复存在死循环
@@ -8,11 +9,15 @@ import matplotlib.pyplot as plt
 '''
 
 # Define row and col number
-row = 100
+row = 200
 col = 96
+times = 200/200 #功率放大倍数
 
-tasks = np.genfromtxt('vehicle_data_100.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
-phase_base_load = np.genfromtxt('phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
+start = time.time()
+
+tasks = np.genfromtxt('data/vehicle_data_200.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
+phase_base_load *= times
 
 ''' power--每辆车的充电功率;
     efficiency--每辆车的充电效率
@@ -44,7 +49,7 @@ t2 = np.where(np.isin(ρ, ρ2))[0]
 
 #获得基础负载和电路限制get_restriction_in_power
 base_load = np.sum(phase_base_load, axis=0)
-restriction_in_power = 2000 - base_load
+restriction_in_power = 2200 * times - base_load
 
 # 最大三相不平衡度
 max_imbalance_limit = 0.04
@@ -520,4 +525,7 @@ def Plot(x, f_log):
 
 solution, f_T, f_log = PILP_algorithm(n)
 
+end = time.time()
+
+print(end)
 Plot(solution, f_log)
