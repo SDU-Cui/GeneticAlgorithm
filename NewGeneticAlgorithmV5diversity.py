@@ -132,7 +132,7 @@ def PILP_algorithm(n):
             repair1 = Custom_Repair1(offspring)
             repair2 = Custom_Repair2(repair1)
             repair3 = Custom_Repair3(repair2)
-            D2.append((repair3, fitness))
+            D2.append((repair3))
         
         print('after repair diversity:{}'.format(Diversity(D2)))
 
@@ -174,12 +174,20 @@ def hammingDistance(x, y):
 
     return distance
 
+def Distance(x, y):
+    distance = np.linalg.norm(x - y)
+
+    return distance
+
+def Centre(P):
+    return np.average(P, axis=0)
+
 def Diversity(P):
     z = 0
+    centre = Centre(P)
     for i in range(len(P) - 1):
         x = P[i]
-        y = P[i + 1]
-        z += hammingDistance(x, y)
+        z += Distance(x, centre)
     return z
 
 def Custom_Initialization(n):
@@ -516,7 +524,7 @@ def Calculate_punishment(x):
     #     R = 1000 * term1
     # R = 1000 * term1
 
-    return np.sum(2 * term1 * efficiency) + 10 * term2
+    return np.sum(2 * term1 * capacity) + 10 * term2
 
 def Print_Punishment(x):
     total_increment = Calculate_SOC_increment(x)

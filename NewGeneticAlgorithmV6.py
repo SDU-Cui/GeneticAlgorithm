@@ -41,7 +41,7 @@ sd = tasks['sd']
 #R = 20 #惩罚系数
 n = 160 #种群数量
 probability = 0.1 #变异率
-α = 100 #三相不平衡系数
+α = 10 #三相不平衡系数
 
 # 获取ρ1在ρ中的索引位置
 t1 = np.where(np.isin(ρ, ρ1))[0]
@@ -103,48 +103,59 @@ def PILP_algorithm(n):
     k = Updata_Best(P)
     B = P[k][0]
     #f_T = P[k][1]
-    f_log = []
+    f_log = [] # 用来记录电价、惩罚、三相三个适应度值
+    f0_log = [] # 只记录电价
     f_log.append(P[k][1])
+    f0_log.append(P[k][1][0])
     t = 0
     err = 1
     
     while err >= 1e-10:
         Q = Elite(P)
-        P1 = P
-        print('before repair diversity:{}'.format(Diversity(P)))
+        D1 = [] # 用来记录刚产生的子代
+        D2 = [] # 用来记录repair后的子代
+        P1 = P # 用来记录三轮竞争后的父代 
+        P2 = [] # 暂存竞争的父代，最后赋值给P1
         for i in range(3):
             #通过三次竞争获得父代
-            P2 = []
-            for j in range(len(P1) // 2):
+            for j in range(len(P1) // 4 - i * 10):
                 ID1, ID2 = random.sample(range(len(P1)), 2)
                 parent = tournament_Selection(P1[ID1], P1[ID2], 2 - i)
                 P2.append(parent)
-            P1 = P2
+        P1 = P2
         
-        while len(Q) < n:
-            ID1, ID2 = random.sample(range(20), 2)
+        while len(D1) < n:
+            ID1, ID2 = random.sample(range(len(P1)), 2)
             offspring = Custom_Recombination(P1[ID1][0], P1[ID2][0])
-            # repair0 = Custom_Repair0(offspring)
+            D1.append(offspring)
+        
+        print('before repair diversity:{}'.format(Diversity(D1)))
+
+        for i in D1:
+            offspring = i
             offspring = Variation(offspring)
             repair1 = Custom_Repair1(offspring)
             repair2 = Custom_Repair2(repair1)
             repair3 = Custom_Repair3(repair2)
-            # repair2_2 = Custom_Repair2_2(repair3)
-            # repair3 = Variation(repair3)
-            fitness = F(repair3)
-            Q.append((repair3, fitness))
+            D2.append((repair3))
         
-        print('after repair diversity:{}'.format(Diversity(P)))
+        print('after repair diversity:{}'.format(Diversity(D2)))
+
+        for i in D2:
+            fitness = F(i)
+            Q.append((i, fitness, sum(fitness)))
+        
         k = Updata_Best(Q)
         B = Q[k][0]
         #f_T = Q[k][1]
         f_log.append(Q[k][1])
-        if len(f_log) < 4:
+        f0_log.append(Q[k][1][0])
+        if len(f0_log) < 4:
             err = 1
         else:
             err = 0
             for i in range(1, 4):
-                err += abs(f_log[-i][0] - f_log[-i - 1][0])
+                err += abs(sum(f_log[-i]) - sum(f_log[-i - 1]))
         #f_T = Q[k][1]
         #f_log.append(f_T)
         P = Q
@@ -154,7 +165,7 @@ def PILP_algorithm(n):
     
     f_T = F(B)
     
-    return B, f_T, f_log
+    return B, f_T, f0_log
 
 def hammingDistance(x, y):
     # 计算汉明距离，确定种群多样性
@@ -169,12 +180,20 @@ def hammingDistance(x, y):
 
     return distance
 
+def Distance(x, y):
+    distance = np.linalg.norm(x - y)
+
+    return distance
+
+def Centre(P):
+    return np.average(P, axis=0)
+
 def Diversity(P):
     z = 0
+    centre = Centre(P)
     for i in range(len(P) - 1):
-        x = P[i][0]
-        y = P[i + 1][0]
-        z += hammingDistance(x, y)
+        x = P[i]
+        z += Distance(x, centre)
     return z
 
 def Custom_Initialization(n):
@@ -189,19 +208,28 @@ def Custom_Initialization(n):
         # x = Custom_Repair2_2(x)
         fitness = F(x)
 
-        P.append((x, fitness))
+        P.append((x, fitness, sum(fitness)))
 
     return P
 
-def Sort(P):
-    # 按适应度值从小到大排序，返回索引
-    return sorted(range(len(P)), key=lambda i: P[i][1][1])
+def Sort(P, k):
+    # 按适应度值从小到大排序，返回索引，k代表按哪一项排序，有电价、惩罚、三相不平衡三项
+    # 而函数Sort_sumfitness代表按照三者之和排序
+    return sorted(range(len(P)), key=lambda i: P[i][k])
+
+def Sort_sumfitness(P):
+    # 这个函数和Sort的区别在于，Sort是按照k代表的电价、惩罚、三相不平衡其中一项排序
+    # 这里是按照三者之和排序
+    return sorted(range(len(P)), key=lambda i: P[i][2])
 
 def Elite(P):
     #经营策略，将5%的最优解直接到下一代
-    num = int(n * 0.05)
-    top_index = Sort(P)[: num]
-    Q = [P[i] for i in top_index]
+    num = round(n * 0.02)
+    Q = []
+    for k in range(3):
+        top_index = Sort(P, k)[: num]
+        Q += [P[i] for i in top_index]
+    
     return Q
 
 def Updata_Best(P):
@@ -215,7 +243,7 @@ def Updata_Best(P):
 #            best_k = k
 #            best_fitness = fitness
 
-    best_k = Sort(P)[0]
+    best_k = Sort_sumfitness(P)[0] #选择电价、惩罚、三相之和最低的作为最优
 
     return best_k
     #return best_solution
@@ -495,7 +523,10 @@ def Calculate_R():
     return np.sum(ρ * np.full((col), power.max()) * 0.25) / Δ
 
 def Calculate_punishment(x):
-    term1 = np.sum(np.abs(Calculate_SOC_increment(x) - Calculate_max_SOC()))
+    SOC = np.abs(Calculate_SOC_increment(x) - Calculate_max_SOC())
+    ρ1 = np.count_nonzero(SOC) / row
+    c1 = pow(10, α * ρ1) # c1是term1的惩罚系数
+    term1 = np.sum(SOC)
     load_overrun = Calculate_used_power(x) - restriction_in_power
     term2 = np.sum(load_overrun[load_overrun > 0])
     # phase_list = Distinguish_phase()
@@ -511,7 +542,7 @@ def Calculate_punishment(x):
     #     R = 1000 * term1
     # R = 1000 * term1
 
-    return np.sum(2 * term1 * efficiency) + 10 * term2
+    return c1 * (term1 + term2)
 
 def Print_Punishment(x):
     total_increment = Calculate_SOC_increment(x)
@@ -536,8 +567,9 @@ def Print_Punishment(x):
 def Calculate_imbalance(three_phase):
     avg = np.mean(three_phase, axis=0)
     minus = three_phase - avg
+    imbalance = np.sqrt(np.mean(np.square(minus), axis=0)) / avg
 
-    return np.sqrt(np.mean(np.square(minus), axis=0)) / avg
+    return np.where(imbalance >= 0.01, imbalance, 0)
 
 def Print_F(solution):
     # Print the objective value of the solution
@@ -562,8 +594,10 @@ def F(solution):
     three_phase = Calculate_phase(x, phase_list)
     result_phase = Calculate_imbalance(three_phase)
     #α = Calculate_α(result_phase)
+    ρ2 = np.count_nonzero(result_phase) / col
+    c2 = pow(10, α * ρ2)
     
-    return (np.sum(charging_cost), punishment, α * np.sum(result_phase))
+    return (np.sum(charging_cost), punishment, np.sum(c2 * result_phase))
 
 def Plot_circuit_load(x):
     step = np.arange(1, col + 1)
