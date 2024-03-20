@@ -313,7 +313,8 @@ def Search_LoadCol(x, j, index_row):
     load_overrun = np.sum(used_power, axis=0) - restriction_in_power
     # 找到满足最大负载约束的时刻，并利用 faltten 将矩阵降至一维
     loadcol = np.argwhere(load_overrun <= 0).flatten()
-    col_load = np.where(j < loadcol < departure_time_step[index_row])
+    col_load = np.where(j < loadcol)[0]
+    col_load = np.where(departure_time_step[index_row] > col_load)[0]
     # 找到 index_row 这一行为0的元素的列号
     col_0 = np.argwhere(x_arr[index_row] == 0).flatten()
     # 对 col_load 和 col_0 取交集
