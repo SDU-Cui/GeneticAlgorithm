@@ -592,4 +592,3 @@ end = time.time()
 
 Plot(solution, f_log)
 Plot_SOC(solution)
-print(end - start)
