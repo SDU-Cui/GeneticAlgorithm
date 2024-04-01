@@ -23,7 +23,7 @@ sd = np.random.random(size=(row))
 E = np.random.randint(70, 96, size=(row))
 P = np.random.randint(3, 7, size=(row))
 η = np.random.random(size=(row))
-Φ = np.random.choice(elements, size=(row))
+Φ = np.tile(elements, row // 3 + 1)[:row]
 sa = Scale(sa, 0.25, 0.4)
 sd = Scale(sd, 0.8, 0.9)
 η = np.floor(Scale(η, 0.95, 1) * 100) / 100

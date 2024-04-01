@@ -375,9 +375,12 @@ def Calculate_powerABC(x):
     x_arr = Part_Full(x)
     phase_dict = Distinguish_phase()
     # A B C 三相的总功率(带基础负载的)
-    power_A = np.sum(x_arr[i] * power[i] for i in phase_dict['A']) + phase_base_load[0]
-    power_B = np.sum(x_arr[i] * power[i] for i in phase_dict['B']) + phase_base_load[1]
-    power_C = np.sum(x_arr[i] * power[i] for i in phase_dict['C']) + phase_base_load[2]
+    power_A = np.sum(np.fromiter((x_arr[i] * power[i] for i in phase_dict['A']),
+                                 dtype='(96,)f')) + phase_base_load[0]
+    power_B = np.sum(np.fromiter((x_arr[i] * power[i] for i in phase_dict['B']),
+                                 dtype='(96,)f')) + phase_base_load[1]
+    power_C = np.sum(np.fromiter((x_arr[i] * power[i] for i in phase_dict['C']),
+                                 dtype='(96,)f')) + phase_base_load[2]
     power_ABC = np.array([power_A, power_B, power_C])
 
     return power_ABC
@@ -526,12 +529,8 @@ def F(solution):
     charging_cost = used_power * np.expand_dims(ρ, axis=0) * 0.25
     # 计算每个时刻违反最大负载约束的功率
     load_overrun = np.sum(used_power, axis=0) - restriction_in_power
-    phase_dict = Distinguish_phase()
     # 获得 A B C 三相每个时刻的总功率
-    power_A = np.sum((used_power[i] for i in phase_dict['A']), axis=0) + phase_base_load[0]
-    power_B = np.sum((used_power[i] for i in phase_dict['B']), axis=0) + phase_base_load[1]
-    power_C = np.sum((used_power[i] for i in phase_dict['C']), axis=0) + phase_base_load[2]
-    power_ABC = np.vstack((power_A, power_B, power_C))
+    power_ABC = Calculate_powerABC(solution)
     # 计算每个时刻的三相不平衡值
     imbalance = 3 * (np.max(power_ABC, axis=0) - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
     # 由于最大负载约束和三相不平衡约束的违反值相差过大，需要标准化
@@ -560,13 +559,8 @@ def Plot_phase_imbalance(x):
     x_arr = Part_Full(x)
     step = np.arange(1, col + 1)
     limit_imbalance = np.full((col), max_imbalance_limit)
-    phase_dict = Distinguish_phase()
-    used_power = x_arr * np.expand_dims(power, axis=1)
     # 获得 A B C 三相每个时刻的总功率
-    power_A = np.sum((used_power[i] for i in phase_dict['A']), axis=0) + phase_base_load[0]
-    power_B = np.sum((used_power[i] for i in phase_dict['B']), axis=0) + phase_base_load[1]
-    power_C = np.sum((used_power[i] for i in phase_dict['C']), axis=0) + phase_base_load[2]
-    power_ABC = np.vstack((power_A, power_B, power_C))
+    power_ABC = Calculate_powerABC(x)
     # 计算每个时刻的三相不平衡值
     imbalance = 3 * (np.max(power_ABC, axis=0) - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
     plt.title("Phase imbalance")
