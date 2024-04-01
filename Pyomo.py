@@ -4,12 +4,13 @@ import tomli
 import pandas as pd
 
 # Define row and col number
-row = 9
+row = 300
 col = 96
+times = row/200
 
-tasks = np.genfromtxt('./data/vehicle_data_9.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('./data/vehicle_data_300.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('./data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
-# phase_base_load /= 20
+phase_base_load *= times
 A_base_load = phase_base_load[0, :]
 B_base_load = phase_base_load[1, :]
 C_base_load = phase_base_load[2, :]
@@ -36,7 +37,7 @@ sd = tasks['sd']
 
 #获得基础负载和电路限制get_restriction_in_power
 base_load = np.sum(phase_base_load, axis=0)
-restriction_in_power = 2200 - base_load
+restriction_in_power = 2200 * times - base_load
 
 # 最大三相不平衡度
 max_imbalance_limit = 0.04
@@ -214,4 +215,4 @@ for v in model.rows:
         df.at[t, v] = model.x[v, t].value
 
 # 保存DataFrame到CSV文件
-# df.to_csv('./data/charging_status_by_vehicle_and_time.csv')
+df.to_csv('./data/charging_status_by_vehicle_and_time.csv')

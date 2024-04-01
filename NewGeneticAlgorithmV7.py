@@ -11,7 +11,7 @@ import time
 # Define row and col number
 row = 400
 col = 96
-times = 400/200 #功率放大倍数
+times = row/200 #功率放大倍数
 
 start = time.time()
 
@@ -41,7 +41,7 @@ sd = tasks['sd']
 ρ = np.hstack((ρ1 , ρ2))
 R = row * col * max(ρ) #惩罚系数
 n = 20 #种群数量
-probability = 0.1 #变异率
+probability = 0.15 #变异率
 α = 10 #三相不平衡系数
 
 #获得基础负载和电路限制get_restriction_in_power
@@ -61,7 +61,7 @@ def PILP_algorithm(n):
     f_log = []
     f_log.append(Fitness[k_best])
     t = 0
-    print(t, f_log[-1])
+    print(t, f_log[-1], F(B))
     err = 1
     
     while err >= 1e-10:
@@ -95,7 +95,7 @@ def PILP_algorithm(n):
         P = Q
         Fitness = Q_Fitness
         t += 1
-        print(t, f_log[-1])
+        print(t, f_log[-1], F(B))
     
     return B, f_log
 
@@ -124,7 +124,7 @@ def Custom_Initialization(n, k):
         for i in range(row):
             # 产生一个 ta 到 td 时间段的随机数矩阵
             while True:
-                s = np.random.rand(departure_time_step[i] - arrival_time_step[i])
+                s = np.random.rand(departure_time_step[i] - arrival_time_step[i] + 1)
                 s_set = set(s.flatten())
                 if len(s_set) == s.size:
                     # 说明随机产生的矩阵 s 不存在相同元素
@@ -171,8 +171,10 @@ def Custom_Recombination(parent1, parent2):
     '''
     parent1_arr = Part_Full(parent1)
     parent2_arr = Part_Full(parent2)
-    charging_col_parent1 = np.sum(np.expand_dims(power, axis=1) * parent1_arr * np.expand_dims(ρ, axis=0), axis=1)
-    charging_col_parent2 = np.sum(np.expand_dims(power, axis=1) * parent2_arr * np.expand_dims(ρ, axis=0), axis=1)
+    charging_col_parent1 = np.sum(np.expand_dims(power, axis=1)
+                                   * parent1_arr * np.expand_dims(ρ, axis=0), axis=1)
+    charging_col_parent2 = np.sum(np.expand_dims(power, axis=1)
+                                   * parent2_arr * np.expand_dims(ρ, axis=0), axis=1)
     
     # offspring 是新产生的子代 
     offspring = []
@@ -180,10 +182,10 @@ def Custom_Recombination(parent1, parent2):
     for i in range(0, row):
         if charging_col_parent1[i] > charging_col_parent2[i]:
             # If the first parent has better charging
-            offspring.append(parent2[i])
+            offspring.append(np.copy(parent2[i]))
         else:
             # Else, child solution inherits assignment from second parent
-            offspring.append(parent1[i])
+            offspring.append(np.copy(parent1[i]))
 
     return offspring
 
@@ -196,11 +198,32 @@ def Part_Full(p):
     # 新建补全的矩阵，不然会改变原来的不完整列表
     p_arr = []
     for i, vehicle in enumerate(p):
-        front_zero = np.zeros((arrival_time_step[i]), dtype=int)
+        front_zero = np.zeros((arrival_time_step[i] - 1), dtype=int)
         after_zero = np.zeros((col - departure_time_step[i]), dtype=int)
         p_arr.append(np.concatenate((front_zero, vehicle, after_zero), axis=0))
 
     return np.array(p_arr, dtype=int)
+
+def Full_Part(x_arr):
+    '''
+    输入是一个完整个体(矩阵)
+    函数将一个完整矩阵切割为不完整的列表 只有 [ta, td] 时间段
+    返回一个不完整的列表
+    '''
+    x = []
+    for i, vehicle in enumerate(x_arr):
+        x.append(vehicle[arrival_time_step[i] - 1 : departure_time_step[i]])
+
+    return x
+
+def Change(x, y):
+    '''
+    输入两个数
+    函数可以交换两个数的值
+    返回交换后的两个数
+    '''
+
+    return (y, x)
 
 def mutation(x):
     """
@@ -217,9 +240,7 @@ def mutation(x):
             if m < probability:
                 # 交换 j 时间步和随机某个时间步 temp_index 的值
                 temp_index = np.random.randint(lgth)
-                temp = row[temp_index]
-                row[temp_index] = row[j]
-                row[j] = temp
+                row[j], row[temp_index] = Change(row[j], row[temp_index])
 
     return x
 
@@ -231,7 +252,7 @@ def Get_Col(x, j):
     """
     column = {'A':[], 'B':[], 'C':[]}
     for i, row in enumerate(x):
-        if arrival_time_step[i] <= j <= departure_time_step[i]:
+        if arrival_time_step[i] <= j + 1 <= departure_time_step[i]:
             if Φ[i] == 'A':
                 column['A'].append(i)
             elif Φ[i] == 'B':
@@ -259,43 +280,61 @@ def Distinguish_phase():
     
     return phase_dict
 
+def Calculate_overload(x):
+    '''
+    输入一个个体(不完整的列表)
+    函数是为 Repair_load 计算多有时刻违反最大功率约束设计
+    返回所有时刻最大功率违反度
+    '''
+    # 先将 x 补全为 row * col 矩阵
+    x_arr = Part_Full(x)
+    power_col = x_arr * np.expand_dims(power, axis=1)
+    used_power = np.sum(power_col, axis = 0)
+    # 计算每个时刻的超过负载量 overload
+    overload = restriction_in_power - used_power
+
+    return overload
+
+def Search_row1(x, j):
+    '''
+    输入一个个体(不完整的列表) 需要寻找的列
+    函数是为 Repair_Load 寻找 minID 列符合时间约束和 x 值为1的行
+    返回符合条件的行号矩阵
+    '''
+    x_arr = Part_Full(x)
+    row1 = []
+    for i, row in enumerate(x_arr):
+        if arrival_time_step[i] <= j + 1 <= departure_time_step[i] and row[j] == 1:
+            row1.append(i)
+
+    return row1
+
 def Repair_Load(x):
     """
     输入一个个体(不完整的列表)
     函数对每个时间步的最大功率上限进行修复
     返回修复好的个体
     """
-    # 先将 x 补全为 row * col 矩阵
-    x_arr = Part_Full(x)
-    for j in range(col):
-        power_col = x_arr[:, j] * power
-        used_power = np.sum(power_col, axis = 0)
-        while (used_power - restriction_in_power[j] > 0):
-            column = Get_Col(x_arr, j)
-            # 将第 j 列满足时间约束的行号拼为一个矩阵
-            index = np.concatenate(list(column.values()))
-            while (True):
-                # 随机选取一行 index_row
-                index_row = np.random.choice(index)
-                if x_arr[index_row][j] == 1:
-                    while True:
-                        # 在 index_row 行，随机选择一列 index_col
-                        index_col = np.random.choice(range(len(x[index_row])))
-                        if x[index_row][index_col] == 0:
-                            # 将 (index_row, j - ta) 置0
-                            x[index_row][j - arrival_time_step[index_row]] = 0
-                            # 将 (index_row, index_col) 置1
-                            x[index_row][index_col] = 1
-                        else:
-                            continue
-                        break
-                else:
-                    continue
-                break
-                
-            x_arr = Part_Full(x)
-            power_col = x_arr[:, j] * power
-            used_power = np.sum(power_col, axis = 0)
+    # 计算每个时刻的超过负载量 overload
+    overload = Calculate_overload(x)
+    # 获得 minID 所有时刻中违反功率上限最严重的时刻
+    minID = np.argmin(overload)
+    while overload[minID] < 0:
+        row1 = Search_row1(x, minID)
+        # 在满足时间约束且值为1的行号里随机选择一行 index_row
+        index_row = np.random.choice(row1)
+        # 获得所有时刻中满足最大功率约束的时刻 satisload
+        satisload = np.where(overload[arrival_time_step[index_row] - 1:
+                                      departure_time_step[index_row]] >= power[index_row])[0]
+        # 在满足最大功率约束的时刻中随机选择一列 index_col 同时需要减去 ta
+        index_col = np.random.choice(satisload)
+        # 交换数值(可以保证 index_row k 值不变)后重新计算 overload
+        x[index_row][minID - arrival_time_step[index_row] + 1], x[index_row][index_col] = Change(
+            x[index_row][minID - arrival_time_step[index_row] + 1], x[index_row][index_col])
+        # 计算每个时刻的超过负载量 overload
+        overload = Calculate_overload(x)
+        # 获得 minID 所有时刻中违反功率上限最严重的时刻
+        minID = np.argmin(overload)
             
     return x
 
@@ -313,7 +352,8 @@ def Search_LoadCol(x, j, index_row):
     load_overrun = np.sum(used_power, axis=0) - restriction_in_power
     # 找到满足最大负载约束的时刻，并利用 faltten 将矩阵降至一维
     loadcol = np.argwhere(load_overrun <= 0).flatten()
-    col_load = np.where(j < loadcol < departure_time_step[index_row])
+    col_load = np.where(j < loadcol)[0]
+    col_load = np.where(departure_time_step[index_row] > col_load)[0]
     # 找到 index_row 这一行为0的元素的列号
     col_0 = np.argwhere(x_arr[index_row] == 0).flatten()
     # 对 col_load 和 col_0 取交集
@@ -326,6 +366,54 @@ def Search_LoadCol(x, j, index_row):
     else:
         return (j + np.argmin(searchcol) - arrival_time_step[index_row])
 
+def Calculate_powerABC(x):
+    '''
+    输入一个个体(不完整的列表)
+    函数是为 Repair_imbalance 计算 A B C 三相总负载设计
+    返回一个 3 * col 的矩阵
+    '''
+    x_arr = Part_Full(x)
+    phase_dict = Distinguish_phase()
+    # A B C 三相的总功率(带基础负载的)
+    power_A = np.sum(x_arr[i] * power[i] for i in phase_dict['A']) + phase_base_load[0]
+    power_B = np.sum(x_arr[i] * power[i] for i in phase_dict['B']) + phase_base_load[1]
+    power_C = np.sum(x_arr[i] * power[i] for i in phase_dict['C']) + phase_base_load[2]
+    power_ABC = np.array([power_A, power_B, power_C])
+
+    return power_ABC
+
+def Search_imbalancecol(x, index_row):
+    '''
+    输入一个个体(不完整的列表) 行号
+    函数是为 Repair_Imbalance 寻找满足条件的时刻
+    1. 是 maxphase 象限的车
+    2. 不破坏最大功率约束
+    3. 最好找到的时刻此象限正好是 minphase
+    返回满足条件车的行号(是不完整列表的行号)
+    '''
+    overload = Calculate_overload(x)
+    indexrowoverload = overload[arrival_time_step[index_row] - 1
+                                :departure_time_step[index_row]]
+    # index_row 行满足功率上限的时刻
+    satisload = np.where(indexrowoverload > power[index_row])[0]
+    # satisload 中值为0的时刻
+    satiscol0 = np.where(x[index_row] == 0)[0]
+    satisrow = np.intersect1d(satisload, satiscol0)
+    if satisrow.size == 0:
+        return False
+    else:
+        return np.random.choice(satisrow)
+    # if satisload.size == 0:
+    #     return False
+    # elif np.sum(x[index_row][satisload]) == satisload.size:
+    #     return False
+    # else:
+    #     while True:
+    #         index_col = np.random.choice(satisload)
+    #         if x[index_row][index_col] == 0:
+    #             return index_col
+    #         else:
+    #             continue
 
 def Repair_Imbalance(x):
     '''
@@ -333,89 +421,39 @@ def Repair_Imbalance(x):
     函数对每个时间步的三相不平衡进行修复
     返回一个修复好的个体
     '''
-    x_arr = Part_Full(x)
-    for j in range(col):
-        colmun = Get_Col(x_arr, j)
-        # j 时刻的车充电总功率 power_col 注意“不带基础负载”！
-        # power_col = x_arr[:, j] * power
-        # A B C 三相的总功率(带基础负载的)
-        power_A = np.sum(x_arr[i][j] * power[i] for i in colmun['A']) + phase_base_load[0][j]
-        power_B = np.sum(x_arr[i][j] * power[i] for i in colmun['B']) + phase_base_load[1][j]
-        power_C = np.sum(x_arr[i][j] * power[i] for i in colmun['C']) + phase_base_load[2][j]
-        power_ABC = np.array([power_A, power_B, power_C])
-        imbalance = 3 * (np.max(power_ABC) - np.min(power_ABC)) / np.sum(power_ABC)
-        while (imbalance > max_imbalance_limit):
-            max_phase = np.argmax(power_ABC)
-            if max_phase == 0:
-                # 最大象限是 A 相
-                while True:
-                    index_row = np.random.choice(colmun['A'])
-                    if x_arr[index_row][j] == 1:
-                        # 将 A 相 (index_row, j) 置0
-                        x[index_row][j - arrival_time_step[index_row]] = 0
-                        x_arr[index_row][j] = 0
-                        power_A -= power[index_row]
-                        # 随机选择一列 不为1！！ 不然会改变 k 值 将 (index_row, index_col) 置1
-                        while True:
-                            # index_col = np.random.randint(0, x[index_row].size)
-                            index_col = Search_LoadCol(x, j, index_row)
-                            if x[index_row][index_col] == 0:
-                                x[index_row][index_col] = 1
-                                x_arr[index_row][index_col + arrival_time_step[index_row]] = 1
-                            else:
-                                continue
-                            break
-                    else:
-                        continue
-                    break
-            elif max_phase == 1:
-                # 最大象限是 B 相
-                while True:
-                    index_row = np.random.choice(colmun['B'])
-                    if x_arr[index_row][j] == 1:
-                        # 将 B 相 (index_row, j) 置0
-                        x[index_row][j - arrival_time_step[index_row]] = 0
-                        x_arr[index_row][j] = 0
-                        power_B -= power[index_row]
-                        # 随机选择一列 不为1！！ 不然会改变 k 值 将 (index_row, index_col) 置1
-                        while True:
-                            # index_col = np.random.randint(0, x[index_row].size)
-                            index_col = Search_LoadCol(x, j, index_row)
-                            if x[index_row][index_col] == 0:
-                                x[index_row][index_col] = 1
-                                x_arr[index_row][index_col + arrival_time_step[index_row]] = 1
-                            else:
-                                continue
-                            break
-                    else:
-                        continue
-                    break
-            else:
-                # 最大象限是 C 相
-                while True:
-                    index_row = np.random.choice(colmun['C'])
-                    if x_arr[index_row][j] == 1:
-                        # 将 C 相 (index_row, j) 置0
-                        x[index_row][j - arrival_time_step[index_row]] = 0
-                        x_arr[index_row][j] = 0
-                        power_C -= power[index_row]
-                        # 随机选择一列 不为1！！ 不然会改变 k 值 将 (index_row, index_col) 置1
-                        while True:
-                            # index_col = np.random.randint(0, x[index_row].size)
-                            index_col = Search_LoadCol(x, j, index_row)
-                            if x[index_row][index_col] == 0:
-                                x[index_row][index_col] = 1
-                                x_arr[index_row][index_col + arrival_time_step[index_row]] = 1
-                            else:
-                                continue
-                            break
-                    else:
-                        continue
-                    break
-            # 重新计算三相不平衡
-            power_ABC = np.array([power_A, power_B, power_C])
-            imbalance = 3 * (np.max(power_ABC) - np.min(power_ABC)) / np.sum(power_ABC)
-            
+    # 计算所有时刻的三相不平衡
+    power_ABC = Calculate_powerABC(x)
+    imbalance = 3 * (np.max(power_ABC, axis=0)
+                      - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
+    maxID = np.argmax(imbalance)
+    while imbalance[maxID] >= max_imbalance_limit:
+        # maxphase 为 maxID 时刻功率最大的象限
+        phase = ['A', 'B', 'C']
+        maxphase = phase[np.argmax(power_ABC[:, maxID])]
+        minphase = phase[np.argmin(power_ABC[:, maxID])]
+        # 获得 maxID 列的 A B C 三相行号字典 column
+        column = Get_Col(x, maxID)
+        x_arr = Part_Full(x)
+        # 最大象限且值为1的行号矩阵
+        satisrow1 = np.where(x_arr[:, maxID] == 1)[0]
+        maxphase_arr = np.intersect1d(satisrow1, column[maxphase])
+        # 随机选择最大象限且值为1一行 maxphase_row
+        maxphase_row = np.random.choice(maxphase_arr)
+        # 寻找 maxphase_row 行满足条件的列
+        maxphase_col = Search_imbalancecol(x, maxphase_row)
+        # 交换最大象限
+        if maxphase_col == False:
+            continue
+            # return x
+        else:
+            x[maxphase_row][maxID - arrival_time_step[maxphase_row] + 1], x[maxphase_row][maxphase_col] = Change(
+                x[maxphase_row][maxID - arrival_time_step[maxphase_row] + 1], x[maxphase_row][maxphase_col]
+            )
+        power_ABC = Calculate_powerABC(x)
+        imbalance = 3 * (np.max(power_ABC, axis=0)
+                            - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
+        maxID = np.argmax(imbalance)
+
     return x
 
 def Normalize_0_1(data):
@@ -458,8 +496,8 @@ def F(solution):
     # 计算每个时刻的三相不平衡值
     imbalance = 3 * (np.max(power_ABC, axis=0) - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
     # 由于最大负载约束和三相不平衡约束的违反值相差过大，需要标准化
-    punishment = np.sum(Normalize_0_1(load_overrun[load_overrun > 0])) 
-    + np.sum(Normalize_0_1(imbalance[imbalance > max_imbalance_limit]))
+    punishment = (np.sum(Normalize_0_1(load_overrun[load_overrun > 0])) 
+                  + np.sum(Normalize_0_1(imbalance[imbalance > max_imbalance_limit])))
     
     return np.sum(charging_cost) + R * punishment
 
@@ -552,6 +590,6 @@ solution, f_log = PILP_algorithm(n)
 
 end = time.time()
 
-print(end - start)
 Plot(solution, f_log)
 Plot_SOC(solution)
+print(end - start)
