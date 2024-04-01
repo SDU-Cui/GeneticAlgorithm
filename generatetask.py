@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-row = 400
+row = 200
 col = 96
 elements = ['A', 'B', 'C']
 
@@ -34,4 +34,4 @@ names = ['ta', 'td', 'sa', 'sd', 'E', 'P', 'η', 'Φ', 'Δ', 'k']
 data = np.transpose(np.vstack((ta, td, sa, sd, E, P, η, Φ, Δ, k)))
 
 df = pd.DataFrame(data, columns=names)
-df.to_csv('data/vehicle_data_400.csv', index_label='v', encoding='ANSI')
+df.to_csv('data/vehicle_data_200(2).csv', index_label='v', encoding='ANSI')

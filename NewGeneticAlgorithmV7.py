@@ -9,13 +9,13 @@ import time
 '''
 
 # Define row and col number
-row = 400
+row = 200
 col = 96
 times = row/200 #功率放大倍数
 
 start = time.time()
 
-tasks = np.genfromtxt('data/vehicle_data_400.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('data/vehicle_data_200(2).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 
@@ -415,6 +415,27 @@ def Search_imbalancecol(x, index_row):
     #         else:
     #             continue
 
+def Search_imbalancerow(x, column, maxphase_row, maxID):
+    '''
+    x 是不完整个体列表 column 是最小象限的所有行 maxphase_row 是最大象限挑出的行 maxID 是三相不平衡最大的一列
+    函数是为了最小象限找合适的行设计 需要满足 1. 不破坏最大功率上限 2. 是最小象限的行 3. 值为0
+    返回一个行号
+    '''
+    x_arr = Part_Full(x)
+    # mixID 中所有是 0 的行
+    satisrow0 = np.where(x_arr[:, maxID] == 0)[0]
+    # 最小象限中是 0 的行
+    satisrowminphase0 = np.intersect1d(satisrow0, column)
+    overload = Calculate_overload(x)
+    # 计算将 0 变为 1 后不破坏最大功率上限的行
+    overloadrow =  overload[maxID] + power[maxphase_row] - power
+    satisloadrow = np.where(overloadrow >= 0)[0]
+    satisrow = np.intersect1d(satisrowminphase0, satisloadrow)
+    if satisrow.size == 0:
+        return False
+    else:
+        return np.random.choice(satisrow)
+
 def Repair_Imbalance(x):
     '''
     输入一个个体(不完整的列表)
@@ -441,14 +462,27 @@ def Repair_Imbalance(x):
         maxphase_row = np.random.choice(maxphase_arr)
         # 寻找 maxphase_row 行满足条件的列
         maxphase_col = Search_imbalancecol(x, maxphase_row)
+        # 随机选择最小象限且值为0一行 minphase_row
+        minphase_row = Search_imbalancerow(x, column[minphase], maxphase_row, maxID)
+        # 随机选择 minphase_row 行中的一列值为1 minphase_col
+        satisminphaserow1 = np.where(x[minphase_row] == 1)[0]
+        minphase_col = np.random.choice(satisminphaserow1)
         # 交换最大象限
-        if maxphase_col == False:
-            continue
-            # return x
-        else:
+        if maxphase_col != False:
             x[maxphase_row][maxID - arrival_time_step[maxphase_row] + 1], x[maxphase_row][maxphase_col] = Change(
                 x[maxphase_row][maxID - arrival_time_step[maxphase_row] + 1], x[maxphase_row][maxphase_col]
             )
+
+        # 交换最小象限
+        if minphase_row != False:
+            x[minphase_row][maxID - arrival_time_step[minphase_row] + 1], x[minphase_row][minphase_col] = Change(
+                x[minphase_row][maxID - arrival_time_step[minphase_row] + 1], x[minphase_row][minphase_col]
+            )
+
+        # 如果最大和最小象限都没有用找到合适的交换对，直接返回未修复好的个体
+        if maxphase_col == False and minphase_row == False:
+            return x
+        
         power_ABC = Calculate_powerABC(x)
         imbalance = 3 * (np.max(power_ABC, axis=0)
                             - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
@@ -464,12 +498,17 @@ def Normalize_0_1(data):
     """
     # 需要考虑 data 为空的情况
     # 有可能约束完全满足，不存在约束惩罚项
+    # 需要考虑 max_val 和 min_val 相等的情况
     if np.size(data) == 0:
-        scaled_data = data
-    else:
-        min_val = np.min(data)
-        max_val = np.max(data)
-        scaled_data = (data - min_val) / (max_val - min_val)
+        return data
+
+    min_val = np.min(data)
+    max_val = np.max(data)
+
+    if max_val == min_val:
+        return np.ones_like(data)
+
+    scaled_data = (data - min_val) / (max_val - min_val)
 
     return scaled_data
 
