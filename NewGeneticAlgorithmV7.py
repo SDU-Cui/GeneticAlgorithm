@@ -15,7 +15,7 @@ times = row/200 #功率放大倍数
 
 start = time.time()
 
-tasks = np.genfromtxt('data/vehicle_data_200(2).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('data/vehicle_data_200(3).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 
@@ -133,8 +133,8 @@ def Custom_Initialization(n, k):
                     continue
                     
             # 找到第 k 小的值
-            maxk = np.sort(s)[k[i]]
-            vi = np.where(s < maxk, 1 , 0).astype(int)
+            maxk = np.sort(s)[k[i] - 1]
+            vi = np.where(s <= maxk, 1 , 0).astype(int)
             v.append(vi)
 
         v1 = Repair_Load(v)
@@ -573,6 +573,7 @@ def Plot_time_constraint(x):
     x_arr = Part_Full(x)
     rows, cols = np.where(x_arr.T == 1)
     cols += 1
+    rows += 1
     # 绘制散点图
     plt.title("Time constraint")
     plt.xlim((0, row + 1))
