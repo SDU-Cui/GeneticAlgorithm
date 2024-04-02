@@ -4,11 +4,11 @@ import tomli
 import pandas as pd
 
 # Define row and col number
-row = 200
+row = 400
 col = 96
 times = row/200
 
-tasks = np.genfromtxt('./data/vehicle_data_200(6).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('./data/vehicle_data_400.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('./data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 A_base_load = phase_base_load[0, :]
@@ -215,4 +215,4 @@ for v in model.rows:
         df.at[t, v] = model.x[v, t].value
 
 # 保存DataFrame到CSV文件
-# df.to_csv('./data/charging_status_by_vehicle_and_time.csv')
+df.to_csv('./data/charging_status_by_vehicle_and_time.csv')

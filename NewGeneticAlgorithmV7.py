@@ -355,11 +355,11 @@ def Calculate_powerABC(x):
     phase_dict = Distinguish_phase()
     # A B C 三相的总功率(带基础负载的)
     power_A = np.sum(np.fromiter((x_arr[i] * power[i] for i in phase_dict['A']),
-                                 dtype='(96,)f')) + phase_base_load[0]
+                                 dtype='(96,)f'), axis=0) + phase_base_load[0]
     power_B = np.sum(np.fromiter((x_arr[i] * power[i] for i in phase_dict['B']),
-                                 dtype='(96,)f')) + phase_base_load[1]
+                                 dtype='(96,)f'), axis=0) + phase_base_load[1]
     power_C = np.sum(np.fromiter((x_arr[i] * power[i] for i in phase_dict['C']),
-                                 dtype='(96,)f')) + phase_base_load[2]
+                                 dtype='(96,)f'), axis=0) + phase_base_load[2]
     power_ABC = np.array([power_A, power_B, power_C])
 
     return power_ABC
@@ -606,7 +606,7 @@ times = row/200 #功率放大倍数
 
 start = time.time()
 
-tasks = np.genfromtxt('data/vehicle_data_200(6).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('data/vehicle_data_200(2).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 
