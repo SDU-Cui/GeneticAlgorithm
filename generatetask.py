@@ -34,4 +34,4 @@ names = ['ta', 'td', 'sa', 'sd', 'E', 'P', 'η', 'Φ', 'Δ', 'k']
 data = np.transpose(np.vstack((ta, td, sa, sd, E, P, η, Φ, Δ, k)))
 
 df = pd.DataFrame(data, columns=names)
-df.to_csv('data/vehicle_data_200(3).csv', index_label='v', encoding='ANSI')
+df.to_csv('data/vehicle_data_200(6).csv', index_label='v', encoding='ANSI')

@@ -4,9 +4,52 @@ import matplotlib.pyplot as plt
 import time
 
 '''
-这是遗传算法的版本V7 因为V6多级Tournament Selection也不能解决三相不平衡问题
-所以决定重新构想repair策略，全部变为硬约束
+这是遗传算法的版本V8 因为V7虽然实现了约束全部满足，但是因为while循环无法证明是否可以跳出
+所以决定采用 v1 + v2 >= v1' + v2' 的思路
 '''
+
+# Define row and col number
+row = 200
+col = 96
+times = row/200 #功率放大倍数
+
+start = time.time()
+
+tasks = np.genfromtxt('data/vehicle_data_200(6).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
+phase_base_load *= times
+
+''' power--每辆车的充电功率;
+    efficiency--每辆车的充电效率
+    capacity--每辆车的电池容量
+    ρ--电价
+    R--惩罚系数
+    n--种群数量
+    probability--变异概率'''
+
+arrival_time_step = tasks['ta']
+departure_time_step = tasks['td']
+power = tasks['P']
+efficiency = tasks['η']
+capacity = tasks['E']
+sa = tasks['sa']
+sd = tasks['sd']
+Φ = tasks['Φ']
+Δ = tasks['Δ']
+ρ1 = np.full((30), 1)
+ρ2 = np.full((col - 30), 0.1)
+ρ = np.hstack((ρ1 , ρ2))
+R = row * col * max(ρ) #惩罚系数
+n = 20 #种群数量
+probability = 0.15 #变异率
+α = 10 #三相不平衡系数
+
+#获得基础负载和电路限制get_restriction_in_power
+base_load = np.sum(phase_base_load, axis=0)
+restriction_in_power = 2200 * times - base_load 
+
+# 最大三相不平衡度
+max_imbalance_limit = 0.04
 
 def PILP_algorithm(n):
     k = Calculate_k()
@@ -182,18 +225,6 @@ def Change(x, y):
 
     return (y, x)
 
-def Price_Probability(ρ, MIN, MAX):
-    """
-    归一化映射到任意区间
-    :param data: 数据
-    :param MIN: 目标数据最小值
-    :param MAX: 目标数据最大值
-    :return:
-    """
-    d_min = np.min(ρ)    # 当前数据最大值
-    d_max = np.max(ρ)    # 当前数据最小值
-    return MIN + (ρ - d_min) * (MAX - MIN)/(d_max - d_min)
-
 def mutation(x):
     """
     输入 x 是一个个体，是不完整的列表个体
@@ -203,23 +234,13 @@ def mutation(x):
     for i, row in enumerate(x):
         # 按行进行变异处理
         lgth = len(row)
-        pro = np.copy(probability[arrival_time_step[i] - 1 : departure_time_step[i]])
-        # 将 0 1 分为两组
-        col0 = np.where(row == 0)[0]
-        col1 = np.where(row == 1)[0]
-
-        # 对 1 组变异 1 的数总是比 0 多 高电价高变异率
-        # 存在所有时刻都需要充电的情况 这时没有 0 组 直接不变异就好
-        if col0.size > 0:
-            for j in col1:
-                m = random.random()
-                if m < pro[j]:
-                    # 在 0 组中选择另一个数组成变换对 低电价高变异率prolow
-                    prolow = (1 - pro[col0])
-                    # 概率和为 1
-                    p = prolow / np.sum(prolow)
-                    obj = np.random.choice(col0, p=p)
-                    row[j], row[obj] = Change(row[j], row[obj])
+        for j in range(lgth):
+            # 逐个时间步尝试变异
+            m = random.random()
+            if m < probability:
+                # 交换 j 时间步和随机某个时间步 temp_index 的值
+                temp_index = np.random.randint(lgth)
+                row[j], row[temp_index] = Change(row[j], row[temp_index])
 
     return x
 
@@ -262,7 +283,7 @@ def Distinguish_phase():
 def Calculate_overload(x):
     '''
     输入一个个体(不完整的列表)
-    函数是为 Repair_load 计算多有时刻违反最大功率约束设计
+    函数是为 Repair_violate 中 Calculate_V 计算违反最大功率约束设计
     返回所有时刻最大功率违反度
     '''
     # 先将 x 补全为 row * col 矩阵
@@ -274,81 +295,10 @@ def Calculate_overload(x):
 
     return overload
 
-def Search_row1(x, j):
-    '''
-    输入一个个体(不完整的列表) 需要寻找的列
-    函数是为 Repair_Load 寻找 minID 列符合时间约束和 x 值为1的行
-    返回符合条件的行号矩阵
-    '''
-    x_arr = Part_Full(x)
-    row1 = []
-    for i, row in enumerate(x_arr):
-        if arrival_time_step[i] <= j + 1 <= departure_time_step[i] and row[j] == 1:
-            row1.append(i)
-
-    return row1
-
-def Repair_Load(x):
-    """
-    输入一个个体(不完整的列表)
-    函数对每个时间步的最大功率上限进行修复
-    返回修复好的个体
-    """
-    # 计算每个时刻的超过负载量 overload
-    overload = Calculate_overload(x)
-    # 获得 minID 所有时刻中违反功率上限最严重的时刻
-    minID = np.argmin(overload)
-    while overload[minID] < 0:
-        row1 = Search_row1(x, minID)
-        # 在满足时间约束且值为1的行号里随机选择一行 index_row
-        index_row = np.random.choice(row1)
-        # 获得所有时刻中满足最大功率约束的时刻 satisload
-        satisload = np.where(overload[arrival_time_step[index_row] - 1:
-                                      departure_time_step[index_row]] >= power[index_row])[0]
-        # 在满足最大功率约束的时刻中随机选择一列 index_col 同时需要减去 ta
-        index_col = np.random.choice(satisload)
-        # 交换数值(可以保证 index_row k 值不变)后重新计算 overload
-        x[index_row][minID - arrival_time_step[index_row] + 1], x[index_row][index_col] = Change(
-            x[index_row][minID - arrival_time_step[index_row] + 1], x[index_row][index_col])
-        # 计算每个时刻的超过负载量 overload
-        overload = Calculate_overload(x)
-        # 获得 minID 所有时刻中违反功率上限最严重的时刻
-        minID = np.argmin(overload)
-            
-    return x
-
-def Search_LoadCol(x, j, index_row):
-    '''
-    输入为一个个体(不完全的列表) 三相不平衡的列号 随机生成的行号
-    函数主要为三相不平衡约束第 j 列寻找 index_row 行满足 1.不破坏最大负载约束 *2.在 j 时刻之后的列*
-    返回列号
-    '''
-    # 将个体补全为 row * col 的矩阵
-    x_arr = Part_Full(x)
-    # 计算用电表 (row * col)
-    used_power = x_arr * np.expand_dims(power, axis=1)
-    # 计算每个时刻违反最大负载约束的功率
-    load_overrun = np.sum(used_power, axis=0) - restriction_in_power
-    # 找到满足最大负载约束的时刻，并利用 faltten 将矩阵降至一维
-    loadcol = np.argwhere(load_overrun <= 0).flatten()
-    col_load = np.where(j < loadcol)[0]
-    col_load = np.where(departure_time_step[index_row] > col_load)[0]
-    # 找到 index_row 这一行为0的元素的列号
-    col_0 = np.argwhere(x_arr[index_row] == 0).flatten()
-    # 对 col_load 和 col_0 取交集
-    setcol = set(col_load).intersection(set(col_0))
-    searchcol = np.array(list(setcol))
-    if searchcol.size == 0:
-        # 如果不存在满足条件的列号，就破坏之前修复的三相不平衡
-        # 随机选择一个不会破坏最大负载约束的列号返回
-        return np.argmin(loadcol)
-    else:
-        return (j + np.argmin(searchcol) - arrival_time_step[index_row])
-
 def Calculate_powerABC(x):
     '''
     输入一个个体(不完整的列表)
-    函数是为 Repair_imbalance 计算 A B C 三相总负载设计
+    函数是为 Repair_violate 中 Calculate_V 计算 A B C 三相总负载设计
     返回一个 3 * col 的矩阵
     '''
     x_arr = Part_Full(x)
@@ -364,111 +314,32 @@ def Calculate_powerABC(x):
 
     return power_ABC
 
-def Search_imbalancecol(x, index_row):
-    '''
-    输入一个个体(不完整的列表) 行号
-    函数是为 Repair_Imbalance 寻找满足条件的时刻
-    1. 是 maxphase 象限的车
-    2. 不破坏最大功率约束
-    3. 最好找到的时刻此象限正好是 minphase
-    返回满足条件车的行号(是不完整列表的行号)
-    '''
-    overload = Calculate_overload(x)
-    indexrowoverload = overload[arrival_time_step[index_row] - 1
-                                :departure_time_step[index_row]]
-    # index_row 行满足功率上限的时刻
-    satisload = np.where(indexrowoverload > power[index_row])[0]
-    # satisload 中值为0的时刻
-    satiscol0 = np.where(x[index_row] == 0)[0]
-    satisrow = np.intersect1d(satisload, satiscol0)
-    if satisrow.size == 0:
-        return False
-    else:
-        return np.random.choice(satisrow)
-    # if satisload.size == 0:
-    #     return False
-    # elif np.sum(x[index_row][satisload]) == satisload.size:
-    #     return False
-    # else:
-    #     while True:
-    #         index_col = np.random.choice(satisload)
-    #         if x[index_row][index_col] == 0:
-    #             return index_col
-    #         else:
-    #             continue
 
-def Search_imbalancerow(x, column, maxphase_row, maxID):
+def Calculate_V(x):
     '''
-    x 是不完整个体列表 column 是最小象限的所有行 maxphase_row 是最大象限挑出的行 maxID 是三相不平衡最大的一列
-    函数是为了最小象限找合适的行设计 需要满足 1. 不破坏最大功率上限 2. 是最小象限的行 3. 值为0
-    返回一个行号
+    输入不完整个体列表
+    函数是为 Repair_violate 计算约束违反度设计的
+    返回个体的约束违反度
     '''
-    x_arr = Part_Full(x)
-    # mixID 中所有是 0 的行
-    satisrow0 = np.where(x_arr[:, maxID] == 0)[0]
-    # 最小象限中是 0 的行
-    satisrowminphase0 = np.intersect1d(satisrow0, column)
-    overload = Calculate_overload(x)
-    # 计算将 0 变为 1 后不破坏最大功率上限的行
-    overloadrow =  overload[maxID] + power[maxphase_row] - power
-    satisloadrow = np.where(overloadrow >= 0)[0]
-    satisrow = np.intersect1d(satisrowminphase0, satisloadrow)
-    if satisrow.size == 0:
-        return False
-    else:
-        return np.random.choice(satisrow)
+    # 计算每个时刻违反最大负载约束的功率
+    load_overrun = Calculate_overload(x)
+    # 获得 A B C 三相每个时刻的总功率
+    power_ABC = Calculate_powerABC(solution)
+    # 计算每个时刻的三相不平衡值 
+    imbalance = 3 * (np.max(power_ABC, axis=0) - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
+    # 由于最大负载约束和三相不平衡约束的违反值相差过大，需要标准化
+    violation = (np.sum(Normalize_0_1(load_overrun[load_overrun < 0])) 
+                  + np.sum(Normalize_0_1(imbalance[imbalance > max_imbalance_limit])))
 
-def Repair_Imbalance(x):
-    '''
-    输入一个个体(不完整的列表)
-    函数对每个时间步的三相不平衡进行修复
-    返回一个修复好的个体
-    '''
-    # 计算所有时刻的三相不平衡
-    power_ABC = Calculate_powerABC(x)
-    imbalance = 3 * (np.max(power_ABC, axis=0)
-                      - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
-    maxID = np.argmax(imbalance)
-    while imbalance[maxID] >= max_imbalance_limit:
-        # maxphase 为 maxID 时刻功率最大的象限
-        phase = ['A', 'B', 'C']
-        maxphase = phase[np.argmax(power_ABC[:, maxID])]
-        minphase = phase[np.argmin(power_ABC[:, maxID])]
-        # 获得 maxID 列的 A B C 三相行号字典 column
-        column = Get_Col(x, maxID)
-        x_arr = Part_Full(x)
-        # 最大象限且值为1的行号矩阵
-        satisrow1 = np.where(x_arr[:, maxID] == 1)[0]
-        maxphase_arr = np.intersect1d(satisrow1, column[maxphase])
-        # 随机选择最大象限且值为1一行 maxphase_row
-        maxphase_row = np.random.choice(maxphase_arr)
-        # 寻找 maxphase_row 行满足条件的列
-        maxphase_col = Search_imbalancecol(x, maxphase_row)
-        # 随机选择最小象限且值为0一行 minphase_row
-        minphase_row = Search_imbalancerow(x, column[minphase], maxphase_row, maxID)
-        # 随机选择 minphase_row 行中的一列值为1 minphase_col
-        satisminphaserow1 = np.where(x[minphase_row] == 1)[0]
-        minphase_col = np.random.choice(satisminphaserow1)
-        # 交换最大象限
-        if maxphase_col != False:
-            x[maxphase_row][maxID - arrival_time_step[maxphase_row] + 1], x[maxphase_row][maxphase_col] = Change(
-                x[maxphase_row][maxID - arrival_time_step[maxphase_row] + 1], x[maxphase_row][maxphase_col]
-            )
+    return violation
 
-        # 交换最小象限
-        if minphase_row != False:
-            x[minphase_row][maxID - arrival_time_step[minphase_row] + 1], x[minphase_row][minphase_col] = Change(
-                x[minphase_row][maxID - arrival_time_step[minphase_row] + 1], x[minphase_row][minphase_col]
-            )
+def Repair_violate(x):
+    '''
+    输入不完整个体列表
+    这是 V8 的修复函数 最大功率上限和三相不平衡都在这里完成
+    返回修复好的不完整个体列表
+    '''
 
-        # 如果最大和最小象限都没有用找到合适的交换对，直接返回未修复好的个体
-        if maxphase_col == False and minphase_row == False:
-            return x
-        
-        power_ABC = Calculate_powerABC(x)
-        imbalance = 3 * (np.max(power_ABC, axis=0)
-                            - np.min(power_ABC, axis=0)) / np.sum(power_ABC, axis=0)
-        maxID = np.argmax(imbalance)
 
     return x
 
@@ -598,49 +469,6 @@ def Plot(x, f_log):
 
     plt.tight_layout()  # 自动调整子图的布局
     plt.show()
-
-# Define row and col number
-row = 200
-col = 96
-times = row/200 #功率放大倍数
-
-start = time.time()
-
-tasks = np.genfromtxt('data/vehicle_data_200(6).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
-phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
-phase_base_load *= times
-
-''' power--每辆车的充电功率;
-    efficiency--每辆车的充电效率
-    capacity--每辆车的电池容量
-    ρ--电价
-    R--惩罚系数
-    n--种群数量
-    probability--变异概率'''
-
-arrival_time_step = tasks['ta']
-departure_time_step = tasks['td']
-power = tasks['P']
-efficiency = tasks['η']
-capacity = tasks['E']
-sa = tasks['sa']
-sd = tasks['sd']
-Φ = tasks['Φ']
-Δ = tasks['Δ']
-ρ1 = np.full((30), 1)
-ρ2 = np.full((col - 30), 0.1)
-ρ = np.hstack((ρ1 , ρ2))
-R = row * col * max(ρ) #惩罚系数
-n = 20 #种群数量
-probability = Price_Probability(ρ, 0.1, 0.9) #变异率
-α = 10 #三相不平衡系数
-
-#获得基础负载和电路限制get_restriction_in_power
-base_load = np.sum(phase_base_load, axis=0)
-restriction_in_power = 2200 * times - base_load 
-
-# 最大三相不平衡度
-max_imbalance_limit = 0.04
 
 solution, f_log = PILP_algorithm(n)
 

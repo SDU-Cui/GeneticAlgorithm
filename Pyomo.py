@@ -8,7 +8,7 @@ row = 200
 col = 96
 times = row/200
 
-tasks = np.genfromtxt('./data/vehicle_data_200(3).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('./data/vehicle_data_200(6).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('./data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 A_base_load = phase_base_load[0, :]
