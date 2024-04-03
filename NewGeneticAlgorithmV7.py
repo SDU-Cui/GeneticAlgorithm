@@ -202,7 +202,6 @@ def mutation(x):
     """
     for i, row in enumerate(x):
         # 按行进行变异处理
-        lgth = len(row)
         pro = np.copy(probability[arrival_time_step[i] - 1 : departure_time_step[i]])
         # 将 0 1 分为两组
         col0 = np.where(row == 0)[0]
@@ -305,8 +304,13 @@ def Repair_Load(x):
         # 获得所有时刻中满足最大功率约束的时刻 satisload
         satisload = np.where(overload[arrival_time_step[index_row] - 1:
                                       departure_time_step[index_row]] >= power[index_row])[0]
-        # 在满足最大功率约束的时刻中随机选择一列 index_col 同时需要减去 ta
-        index_col = np.random.choice(satisload)
+        # 在满足最大功率约束的时刻中选择一列 index_col 同时需要减去 ta
+        # 选择列时 低电价高概率
+        pro = np.copy(probability[arrival_time_step[index_row] - 1
+                                   : departure_time_step[index_row]])
+        prolow = (1 - pro[satisload])
+        p = prolow / np.sum(prolow)
+        index_col = np.random.choice(satisload, p=p)
         # 交换数值(可以保证 index_row k 值不变)后重新计算 overload
         x[index_row][minID - arrival_time_step[index_row] + 1], x[index_row][index_col] = Change(
             x[index_row][minID - arrival_time_step[index_row] + 1], x[index_row][index_col])
@@ -384,18 +388,12 @@ def Search_imbalancecol(x, index_row):
     if satisrow.size == 0:
         return False
     else:
-        return np.random.choice(satisrow)
-    # if satisload.size == 0:
-    #     return False
-    # elif np.sum(x[index_row][satisload]) == satisload.size:
-    #     return False
-    # else:
-    #     while True:
-    #         index_col = np.random.choice(satisload)
-    #         if x[index_row][index_col] == 0:
-    #             return index_col
-    #         else:
-    #             continue
+        # 选择列时 低电价高概率
+        pro = np.copy(probability[arrival_time_step[index_row] - 1
+                                   : departure_time_step[index_row]])
+        prolow = (1 - pro[satisrow])
+        p = prolow / np.sum(prolow)
+        return np.random.choice(satisrow, p=p)
 
 def Search_imbalancerow(x, column, maxphase_row, maxID):
     '''
@@ -446,9 +444,7 @@ def Repair_Imbalance(x):
         maxphase_col = Search_imbalancecol(x, maxphase_row)
         # 随机选择最小象限且值为0一行 minphase_row
         minphase_row = Search_imbalancerow(x, column[minphase], maxphase_row, maxID)
-        # 随机选择 minphase_row 行中的一列值为1 minphase_col
-        satisminphaserow1 = np.where(x[minphase_row] == 1)[0]
-        minphase_col = np.random.choice(satisminphaserow1)
+        
         # 交换最大象限
         if maxphase_col != False:
             x[maxphase_row][maxID - arrival_time_step[maxphase_row] + 1], x[maxphase_row][maxphase_col] = Change(
@@ -457,6 +453,13 @@ def Repair_Imbalance(x):
 
         # 交换最小象限
         if minphase_row != False:
+            # 选择 minphase_row 行中的一列值为1 minphase_col 高电价高概率
+            satisminphaserow1 = np.where(x[minphase_row] == 1)[0]
+            pro = np.copy(probability[arrival_time_step[minphase_row] - 1
+                                    : departure_time_step[minphase_row]])
+            prolow = pro[satisminphaserow1]
+            p = prolow / np.sum(prolow)
+            minphase_col = np.random.choice(satisminphaserow1, p=p)
             x[minphase_row][maxID - arrival_time_step[minphase_row] + 1], x[minphase_row][minphase_col] = Change(
                 x[minphase_row][maxID - arrival_time_step[minphase_row] + 1], x[minphase_row][minphase_col]
             )
@@ -600,13 +603,13 @@ def Plot(x, f_log):
     plt.show()
 
 # Define row and col number
-row = 200
+row = 300
 col = 96
 times = row/200 #功率放大倍数
 
 start = time.time()
 
-tasks = np.genfromtxt('data/vehicle_data_200(2).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('data/vehicle_data_300.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 

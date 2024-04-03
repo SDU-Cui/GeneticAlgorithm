@@ -4,11 +4,11 @@ import tomli
 import pandas as pd
 
 # Define row and col number
-row = 400
+row = 300
 col = 96
 times = row/200
 
-tasks = np.genfromtxt('./data/vehicle_data_400.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('./data/vehicle_data_300.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('./data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 A_base_load = phase_base_load[0, :]
