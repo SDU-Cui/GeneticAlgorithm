@@ -37,6 +37,8 @@ def PILP_algorithm(n):
             fitness = F(x3)
             Q_Fitness.append(fitness)
             Q.append(x3)
+            
+        print(Diversity(Q))
         
         k_best = Updata_Best(Q_Fitness)
         B = Q[k_best]
@@ -44,6 +46,12 @@ def PILP_algorithm(n):
         if len(f_log) < 4:
             err = 1
         else:
+            if f_log[-1] == f_log[-2]:
+                # 当出现不再进化的情况，对最优解局部搜索
+                Q[k_best] = Local_Search(B, Q_Fitness[k_best])
+                B = Q[k_best]
+                Q_Fitness[k_best] = F(B)
+                f_log[-1] = Q_Fitness[k_best]
             differences = [abs(f_log[-1] - f_log[-2]), 
                abs(f_log[-2] - f_log[-3]), 
                abs(f_log[-3] - f_log[-4])]
@@ -98,6 +106,7 @@ def Custom_Initialization(n, k):
         v2 = Repair_Imbalance(v1)
         P.append(v2)
         Fitness.append(F(v2))
+    print(Diversity(P))
 
     return (P, Fitness)
 
@@ -521,6 +530,62 @@ def F(solution):
     
     return np.sum(charging_cost) + R * punishment
 
+def Local_Search(x, F_best):
+    '''
+    输入一个不完整个体，这个个体是种群中最优个体 和这个个体的适应度值
+    函数是为迭代过程中出现不进化情况对最优个体局部搜索设计
+    返回局部搜索结果
+    '''
+    overload = Calculate_overload(x)
+    for i, row in enumerate(x):
+        # 将 0 1 分为两组
+        satisrow = np.where(row >= np.min(power))
+        col0 = np.where(row[satisrow] == 0)[0]
+        col1 = np.where(row[satisrow] == 1)[0]
+        for i0 in col0:
+            # lowcol1 是比 i0 电价低的 col1 中的时刻
+            lowcol1 = col1[col1 > i0]
+            for j in lowcol1:
+                row[i0], row[j] = Change(row[i0], row[j])
+                if F(x) < F_best:
+                    # 如果改变后适应度值比之前更好就返回这个更好的个体
+                    return x
+                else:
+                    # 如果改变后适应度值没有更好就改回来 不做改变
+                    row[i0], row[j] = Change(row[i0], row[j])
+    return x                
+
+def hammingDistance(x, y):
+    '''
+    输入两个不完整个体列表
+    计算汉明距离，帮助 Diversity 函数确定种群多样性
+    返回两个个体的汉明距离
+    '''
+    x_arr = Part_Full(x)
+    y_arr = Part_Full(y)
+    x = np.ravel(x_arr)
+    y = np.ravel(y_arr)
+    xor = x ^ y
+    distance = 0
+    # 每次右移，最左边都会补零，因此截止条件是xor已经是一个零值了
+    for i in range(len(xor)):
+        if xor[i] & 1:
+            distance = distance + 1
+
+    return distance
+
+def Diversity(P):
+    '''
+    输入一个种群 P
+    函数是为了计算整个种群的多样性
+    返回种群多样性
+    '''
+    distance = []
+    for i in P:
+        for j in P:
+            distance.append(hammingDistance(i, j))
+    return np.sum(distance)
+
 def Plot_circuit_load(x):
     x_arr = Part_Full(x)
     step = np.arange(1, col + 1)
@@ -603,13 +668,13 @@ def Plot(x, f_log):
     plt.show()
 
 # Define row and col number
-row = 300
+row = 200
 col = 96
 times = row/200 #功率放大倍数
 
 start = time.time()
 
-tasks = np.genfromtxt('data/vehicle_data_300.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('data/vehicle_data_200(2).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 
@@ -640,7 +705,7 @@ probability = Price_Probability(ρ, 0.1, 0.9) #变异率
 
 #获得基础负载和电路限制get_restriction_in_power
 base_load = np.sum(phase_base_load, axis=0)
-restriction_in_power = 2200 * times - base_load 
+restriction_in_power = 2200 * times - base_load
 
 # 最大三相不平衡度
 max_imbalance_limit = 0.04
