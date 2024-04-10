@@ -5,6 +5,18 @@ import NewGeneticAlgorithmV7Function as ga
 读取csv数据，定义变量
 '''
 
+def Price_Probability(ρ, MIN, MAX):
+    """
+    归一化映射到任意区间
+    :param data: 数据
+    :param MIN: 目标数据最小值
+    :param MAX: 目标数据最大值
+    :return:
+    """
+    d_min = np.min(ρ)    # 当前数据最大值
+    d_max = np.max(ρ)    # 当前数据最小值
+    return MIN + (ρ - d_min) * (MAX - MIN)/(d_max - d_min)
+
 # Define row and col number
 row = 200
 col = 96
@@ -43,7 +55,7 @@ n = 20
 # 变异率
 probability = 0.4
 # 价格映射
-map_ρ = ga.Price_Probability(ρ, 0.1, 0.9)
+map_ρ = Price_Probability(ρ, 0.1, 0.9)
 # 三相不平衡系数
 α = 10
 
