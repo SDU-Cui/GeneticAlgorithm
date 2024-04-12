@@ -36,19 +36,21 @@ while err >= 1e-10:
         Q.append(x3)
         
     print(ga.Diversity(Q))
+    Q_shared_fitness = ga.Calculate_shared_fitness(Q, Q_Fitness, 7000 * ga.times)
     
-    k_best = ga.Updata_Best(Q_Fitness)
+    k_best = ga.Updata_Best(Q_shared_fitness)
     B = Q[k_best]
-    f_log.append(Q_Fitness[k_best])
+    f_log.append(Q_shared_fitness[k_best])
     if len(f_log) < 4:
         err = 1
     else:
         if f_log[-1] == f_log[-2]:
             # 当出现不再进化的情况，对最优解局部搜索
-            Q[k_best] = ga.Local_Search(B, Q_Fitness[k_best])
+            Q[k_best] = ga.Local_Search(B, Q_shared_fitness[k_best])
             B = Q[k_best]
             Q_Fitness[k_best] = ga.F(B)
-            f_log[-1] = Q_Fitness[k_best]
+            Q_shared_fitness = ga.Calculate_shared_fitness(Q, Q_Fitness, 3250*ga.times)
+            f_log[-1] = Q_shared_fitness[k_best]
         differences = [abs(f_log[-1] - f_log[-2]), 
             abs(f_log[-2] - f_log[-3]), 
             abs(f_log[-3] - f_log[-4])]

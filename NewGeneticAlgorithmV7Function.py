@@ -66,8 +66,10 @@ def Custom_Initialization(n1, k):
         v2 = Repair_Imbalance(v1)
         P.append(v2)
         Fitness.append(F(v2))
+    shared_fitness = Calculate_shared_fitness(P, Fitness, 7000 * times)
+    print(Diversity(P))
 
-    return (P, Fitness)
+    return (P, shared_fitness)
 
 def Updata_Best(Fitness):
     '''
@@ -694,11 +696,16 @@ def Calculate_shared_fitness(P, Fitness, sigma_share):
     """计算每个个体的共享适应度"""
     shared_fitness = np.zeros(len(P))
     for i, ind in enumerate(P):
+        sumsh = 0
         for j, other_ind in enumerate(P):
             if i != j:
-                distance = hammingDistance(ind.position, other_ind.position)
+                distance = hammingDistance(ind, other_ind)
                 if distance < sigma_share:
-                    shared_fitness[i] += distance / sigma_share
+                    sumsh += (distance / sigma_share)
+        if sumsh == 0:
+            shared_fitness[i] = 1
+        if sumsh != 0:
+            shared_fitness[i] = sumsh
     
     return Fitness / shared_fitness
 
