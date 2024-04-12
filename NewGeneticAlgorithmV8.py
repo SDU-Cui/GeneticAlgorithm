@@ -1,6 +1,5 @@
 import random
 import NewGeneticAlgorithmV7Function as ga
-import NewGeneticAlgorithmReadcsv as var
 
 '''
 这是遗传算法的版本 V8 因为 V7 存在多样性不足过快收敛的问题
@@ -8,7 +7,7 @@ V8 尝试将种群分为两组 一组加低电价引导 一组不加引导 分�
 '''
 
 k = ga.Calculate_k()
-P, Fitness = ga.Custom_Initialization(var.n, k)
+P, Fitness = ga.Custom_Initialization(ga.n, k)
 k_best = ga.Updata_Best(Fitness)
 # B 记录最优个体
 B = P[k_best]
@@ -24,8 +23,8 @@ while err >= 1e-10:
     Q = [P[k_best]]
     # Q_Fitness 为下一代种群的适应度值列表
     Q_Fitness = [Fitness[k_best]]
-    while len(Q) < var.n:
-        ID1, ID2, ID3, ID4 = random.sample(range(var.n), 4)
+    while len(Q) < ga.n:
+        ID1, ID2, ID3, ID4 = random.sample(range(ga.n), 4)
         parent1 = P[ga.tournament_Selection(ID1, ID2, Fitness)]
         parent2 = P[ga.tournament_Selection(ID3, ID4, Fitness)]
         offspring = ga.Custom_Recombination(parent1, parent2)
