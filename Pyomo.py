@@ -4,11 +4,11 @@ import tomli
 import pandas as pd
 
 # Define row and col number
-row = 300
+row = 200
 col = 96
 times = row/200
 
-tasks = np.genfromtxt('./data/vehicle_data_300.csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
+tasks = np.genfromtxt('./data/vehicle_data_200(2).csv', delimiter=',', names=True, dtype=None, encoding='ANSI')
 phase_base_load = np.genfromtxt('./data/phase_base_load.csv', delimiter=',', dtype=None, encoding='UTF-8')
 phase_base_load *= times
 A_base_load = phase_base_load[0, :]
@@ -58,7 +58,7 @@ def zero_constraint_rule(model, i):
     lower_bound = arrival_time_step[i - 1]
     upper_bound = departure_time_step[i - 1]
     for j in model.cols:
-        if lower_bound <= j - 1 <= upper_bound:
+        if lower_bound <= j <= upper_bound:
             return Constraint.Skip  # 不对在区间内的变量添加约束
         else:
             return model.x[i, j] == 0  # 将不在区间内的变量置零
@@ -68,7 +68,7 @@ def fix_model_value(model):
         lower_bound = arrival_time_step[i - 1]
         upper_bound = departure_time_step[i - 1]
         for j in model.cols:
-            if lower_bound <= j - 1 <= upper_bound:
+            if lower_bound <= j <= upper_bound:
                 continue
             else:
                 model.x[i, j].fix(0)
